@@ -38,6 +38,10 @@ class IdeaValidationResult(BaseModel):
     action_items: list[str]          # próximos pasos concretos
     pivot_suggestions: list[str]     # pivots sugeridos si el mercado está saturado
     news_samples: list[str]          # titulares de prensa recientes
+    # AI-enhanced analysis via OpenRouter (empty if OPENROUTER_API_KEY not set)
+    ai_recommendation: str = ""
+    quick_wins: list[str] = []       # 3 concrete 90-day actions
+    red_flags: list[str] = []        # Paraguay-specific risks
     sources_queried: list[str]
     sources_unavailable: list[str]
     scan_duration_ms: int

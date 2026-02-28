@@ -1,0 +1,36 @@
+{
+  "env": {
+    "OPENROUTER_API_KEY": "sk-or-YOUR_KEY_HERE"
+  },
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "openrouter/openai/gpt-4o-mini"
+      },
+      "models": {
+        "openrouter/openai/gpt-4o-mini": {}
+      }
+    }
+  },
+  "plugins": {
+    "entries": {
+      "openclaw-mcp-client": {
+        "enabled": true,
+        "config": {
+          "toolPrefix": false,
+          "servers": [
+            {
+              "name": "paraguay-validator",
+              "url": "http://localhost:8001/mcp"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "skills": {
+    "load": {
+      "extraDirs": ["./openclaw-skill"]
+    }
+  }
+}

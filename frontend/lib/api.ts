@@ -24,6 +24,10 @@ export interface IdeaValidationResult {
   action_items: string[];
   pivot_suggestions: string[];
   news_samples: string[];
+  // AI-enhanced analysis via OpenRouter (empty strings/arrays if key not set)
+  ai_recommendation: string;
+  quick_wins: string[];
+  red_flags: string[];
   sources_queried: string[];
   sources_unavailable: string[];
   scan_duration_ms: number;

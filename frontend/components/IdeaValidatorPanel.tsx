@@ -132,6 +132,51 @@ export function IdeaValidatorPanel() {
             <p className="text-sm text-gray-800 leading-relaxed">{result.recommendation}</p>
           </div>
 
+          {/* AI Analysis — OpenRouter gpt-oss-120b */}
+          {(result.ai_recommendation || result.quick_wins.length > 0 || result.red_flags.length > 0) && (
+            <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-5 space-y-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-indigo-600">
+                Análisis IA · GPT-OSS via OpenRouter
+              </p>
+
+              {result.ai_recommendation && (
+                <p className="text-sm text-indigo-900 leading-relaxed">{result.ai_recommendation}</p>
+              )}
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {result.quick_wins.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-indigo-700 mb-2">Primeros 90 días</p>
+                    <ol className="space-y-1.5">
+                      {result.quick_wins.map((w, i) => (
+                        <li key={i} className="flex gap-2 text-sm text-indigo-900">
+                          <span className="shrink-0 w-5 h-5 rounded-full bg-indigo-200 text-indigo-700 font-bold text-xs flex items-center justify-center">
+                            {i + 1}
+                          </span>
+                          <span>{w}</span>
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                )}
+
+                {result.red_flags.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-red-600 mb-2">Red flags Paraguay</p>
+                    <ul className="space-y-1.5">
+                      {result.red_flags.map((f, i) => (
+                        <li key={i} className="flex gap-2 text-sm text-red-800">
+                          <span className="shrink-0 text-red-400 mt-0.5">!</span>
+                          <span>{f}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Fortalezas y Debilidades */}
           {(result.strengths.length > 0 || result.weaknesses.length > 0) && (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

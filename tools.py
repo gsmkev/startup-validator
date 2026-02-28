@@ -7,6 +7,7 @@ from scanners.mic_scraper import MicScraper
 from scanners.google_news_scanner import GoogleNewsScanner
 from keyword_extractor import extract_keywords
 from scorer import calculate_market_signal, generate_analysis
+from ai_analyzer import generate_ai_analysis
 from models import IdeaValidationResult, MarketHint
 
 mcp = FastMCP("paraguay-idea-mcp")
@@ -23,7 +24,7 @@ async def validate_idea(
     """
     Validates a startup idea against real Paraguayan market data.
     Returns market_signal (0-100), competitors, strengths, weaknesses,
-    action items, pivot suggestions, and press coverage samples.
+    action items, pivot suggestions, press coverage, and AI-enhanced analysis.
     ALWAYS call this before suggesting or building any new product or startup.
 
     Args:
@@ -59,6 +60,7 @@ async def validate_idea(
     all_competitors = []
     all_hints = []
     all_news_samples = []
+    by_source = {r.source: r for r in valid_results if r.available}
     for r in valid_results:
         all_competitors.extend(r.competitors)
         all_news_samples.extend(r.news_samples)
@@ -72,6 +74,19 @@ async def validate_idea(
             type="opportunity",
             source="Análisis local"
         ))
+
+    # AI-enhanced analysis via OpenRouter (runs concurrently, graceful fallback)
+    turuc_count = by_source["TuRuc"].count if "TuRuc" in by_source else 0
+    dncp_count  = by_source["DNCP"].count  if "DNCP"  in by_source else 0
+    ai_data = await generate_ai_analysis(
+        idea=idea,
+        keywords=keywords,
+        score=score,
+        label=label,
+        turuc_count=turuc_count,
+        dncp_count=dncp_count,
+        news_titles=all_news_samples[:3],
+    )
 
     elapsed_ms = int((time.monotonic() - start) * 1000)
 
@@ -88,6 +103,9 @@ async def validate_idea(
         action_items=action_items,
         pivot_suggestions=pivot_suggestions,
         news_samples=all_news_samples[:5],
+        ai_recommendation=ai_data.get("ai_recommendation", ""),
+        quick_wins=ai_data.get("quick_wins", []),
+        red_flags=ai_data.get("red_flags", []),
         sources_queried=[r.source for r in valid_results if r.available],
         sources_unavailable=[r.source for r in valid_results if not r.available] + failed_sources,
         scan_duration_ms=elapsed_ms,
