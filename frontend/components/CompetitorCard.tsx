@@ -13,6 +13,16 @@ export function CompetitorCard({ competitor }: { competitor: Competitor }) {
       {competitor.detail && (
         <span className="text-xs text-gray-600 line-clamp-2">{competitor.detail}</span>
       )}
+      {competitor.url && (
+        <a
+          href={competitor.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-xs text-blue-600 hover:underline mt-1 truncate"
+        >
+          Ver sitio
+        </a>
+      )}
     </div>
   );
 }

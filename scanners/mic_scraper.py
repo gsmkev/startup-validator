@@ -1,6 +1,14 @@
+import logging
+
 from bs4 import BeautifulSoup
+
 from models import ScanResult, ScannerAnalysis, Competitor
 from scanners.base import BaseScanner
+
+logger = logging.getLogger("validator.scanners.mic")
+
+# emprendedores.php returns 404; convocatorias.php lists emprendimientos with h5 "Name - Sector"
+CONVOCATORIAS_URL = "https://portalemprendedor.mic.gov.py/convocatorias.php"
 
 
 class MicScraper(BaseScanner):
@@ -10,59 +18,56 @@ class MicScraper(BaseScanner):
     signal_direction = "positive"
     display_label = "Startups MIC"
 
-    SEARCH_URL = "https://portalemprendedor.mic.gov.py/emprendedores.php"
-    FALLBACK_URL = "https://portalemprendedor.mic.gov.py/convocatoria.php"
-
     async def scan(self, keywords: list[str]) -> ScanResult:
+        logger.info("scan keywords=%s", keywords[:2])
         try:
             competitors = []
+            seen_names: set[str] = set()
 
-            for keyword in keywords[:2]:
-                try:
-                    resp = await self.client.get(
-                        self.SEARCH_URL,
-                        params={"buscar": keyword},
-                        timeout=5.0,
-                        headers={"User-Agent": "Mozilla/5.0 (compatible; research-bot/1.0)"}
-                    )
-                    resp.raise_for_status()
+            resp = await self.client.get(
+                CONVOCATORIAS_URL,
+                timeout=8.0,
+                headers={"User-Agent": "Mozilla/5.0 (compatible; research-bot/1.0)"}
+            )
+            resp.raise_for_status()
 
-                    soup = BeautifulSoup(resp.text, "lxml")
-                    cards = soup.select(".emprendedor-card, .startup-item, article, .card")
+            soup = BeautifulSoup(resp.text, "lxml")
+            # Emprendimientos listed as h5 with "Name - Sector" format (exclude modal titles)
+            all_h5 = soup.select("h5")
+            kw_lower = [k.lower() for k in keywords[:3]]
 
-                    for card in cards[:5]:
-                        name = card.select_one("h2, h3, .nombre, .title")
-                        desc = card.select_one("p, .descripcion, .description")
-                        competitors.append(Competitor(
-                            name=name.text.strip() if name else "Emprendimiento MIC",
-                            ruc=None,
-                            source="MIC Portal Emprendedor",
-                            detail=desc.text.strip()[:100] if desc else ""
-                        ))
-                except Exception:
-                    try:
-                        resp = await self.client.get(self.FALLBACK_URL, timeout=5.0)
-                        soup = BeautifulSoup(resp.text, "lxml")
-                        cards = soup.select("article, .card, .item")
-                        for card in cards[:3]:
-                            name = card.select_one("h2, h3, .title")
-                            if name and keyword.lower() in name.text.lower():
-                                competitors.append(Competitor(
-                                    name=name.text.strip(),
-                                    ruc=None,
-                                    source="MIC Portal Emprendedor",
-                                    detail=""
-                                ))
-                    except Exception:
+            for h5 in all_h5:
+                text = h5.get_text(strip=True)
+                # Skip modal/system titles
+                if not text or len(text) < 4 or "modal" in str(h5.get("id", "")).lower():
+                    continue
+                # Match "Name - Sector" format (emprendimiento entries)
+                if " - " in text and not text.startswith(("No tenes", "Acceso", "Recuperar")):
+                    name_part = text.split(" - ")[0].strip()
+                    sector_part = text.split(" - ")[-1].strip() if " - " in text else ""
+                    if not name_part:
                         continue
+                    # Filter by keyword match
+                    text_lower = text.lower()
+                    if any(kw in text_lower for kw in kw_lower):
+                        if name_part.lower() not in seen_names:
+                            seen_names.add(name_part.lower())
+                            competitors.append(Competitor(
+                                name=name_part,
+                                ruc=None,
+                                source="MIC Portal Emprendedor",
+                                detail=sector_part if sector_part else None,
+                            ))
 
+            logger.info("MIC done count=%d", len(competitors))
             return ScanResult(
                 source="MIC",
                 count=len(competitors),
-                competitors=competitors,
-                raw_signal=min(len(competitors) / 10, 1.0)
+                competitors=competitors[:10],
+                raw_signal=min(len(competitors) / 10, 1.0),
             )
         except Exception as e:
+            logger.warning("MIC scan failed: %s", e)
             return ScanResult(source="MIC", available=False, hints=[str(e)])
 
     @classmethod

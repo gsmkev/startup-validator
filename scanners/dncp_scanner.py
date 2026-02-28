@@ -1,7 +1,11 @@
+import logging
 import os
 import time
+
 from models import ScanResult, ScannerAnalysis
 from scanners.base import BaseScanner
+
+logger = logging.getLogger("validator.scanners.dncp")
 
 _V3_BASE = "https://www.contrataciones.gov.py/datos/api/v3/doc"
 _TOKEN_TTL_SECONDS = 3000
@@ -35,7 +39,9 @@ class DncpScanner(BaseScanner):
         return token
 
     async def scan(self, keywords: list[str]) -> ScanResult:
+        logger.info("scan keywords=%s", keywords[:2])
         if not os.getenv("DNCP_REQUEST_TOKEN"):
+            logger.warning("DNCP: DNCP_REQUEST_TOKEN not set")
             return ScanResult(
                 source="DNCP",
                 available=False,
@@ -56,9 +62,11 @@ class DncpScanner(BaseScanner):
                     )
                     resp.raise_for_status()
                     total_demand += resp.json().get("pagination", {}).get("total_items", 0)
-                except Exception:
+                except Exception as e:
+                    logger.warning("DNCP keyword %r failed: %s", keyword, e)
                     continue
 
+            logger.info("DNCP done total_demand=%d", total_demand)
             return ScanResult(
                 source="DNCP",
                 count=total_demand,
@@ -67,6 +75,7 @@ class DncpScanner(BaseScanner):
                 hints=[f"El Estado paraguayo tiene {total_demand} licitaciones en este sector"]
             )
         except Exception as e:
+            logger.warning("DNCP scan failed: %s", e)
             return ScanResult(source="DNCP", available=False, hints=[str(e)])
 
     @classmethod

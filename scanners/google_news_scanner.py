@@ -1,6 +1,10 @@
+import logging
 import xml.etree.ElementTree as ET
+
 from models import ScanResult, ScannerAnalysis
 from scanners.base import BaseScanner
+
+logger = logging.getLogger("validator.scanners.news")
 
 
 class GoogleNewsScanner(BaseScanner):
@@ -13,6 +17,7 @@ class GoogleNewsScanner(BaseScanner):
     RSS_URL = "https://news.google.com/rss/search"
 
     async def scan(self, keywords: list[str]) -> ScanResult:
+        logger.info("scan keywords=%s", keywords[:2])
         try:
             query = " ".join(keywords[:2]) + " Paraguay emprendimiento startup"
             resp = await self.client.get(
@@ -33,6 +38,7 @@ class GoogleNewsScanner(BaseScanner):
             ]
 
             recent_count = len(recent_items)
+            logger.info("Google News done count=%d", recent_count)
 
             hints = []
             if recent_count > 10:
@@ -49,6 +55,7 @@ class GoogleNewsScanner(BaseScanner):
                 news_samples=news_titles[:3]
             )
         except Exception as e:
+            logger.warning("Google News scan failed: %s", e)
             return ScanResult(source="Google News PY", available=False, hints=[str(e)])
 
     @classmethod

@@ -10,9 +10,11 @@ Excluded: crunchbase (403), abc/ultima_hora/bing (JS-only), dinaem/innovando (ti
 """
 
 import asyncio
+import hashlib
 import json
 import logging
 import os
+import time
 from typing import Any
 from urllib.parse import quote_plus
 
@@ -22,7 +24,7 @@ from bs4 import BeautifulSoup
 from models import Competitor, ScanResult, ScannerAnalysis
 from scanners.base import BaseScanner
 
-logger = logging.getLogger("paraguay_scanner.web")
+logger = logging.getLogger("validator.scanners.web")
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -34,6 +36,7 @@ _USER_AGENT = (
     "Chrome/122.0.0.0 Safari/537.36"
 )
 _REQUEST_TIMEOUT = 15.0
+_LLM_TIMEOUT = 5.0  # Aggressive timeout for LLM extraction to avoid blocking
 _MAX_HTML_CHARS = 3000
 _OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 
@@ -56,6 +59,8 @@ _SOURCES: dict[str, str] = {
 
 _http_semaphore: asyncio.Semaphore | None = None
 _llm_semaphore: asyncio.Semaphore | None = None
+_LLM_CACHE_TTL = 900  # 15 minutes
+_llm_cache: dict[str, tuple[list[dict[str, Any]], float]] = {}
 
 
 def _get_http_semaphore() -> asyncio.Semaphore:
@@ -197,6 +202,11 @@ async def _fetch_source(
         return ""
 
 
+def _llm_cache_key(source_key: str, keyword: str, html_content: str) -> str:
+    h = hashlib.sha256(html_content.encode()[:2000]).hexdigest()[:16]
+    return f"{source_key}:{keyword}:{h}"
+
+
 async def _call_llm(
     client: httpx.AsyncClient,
     api_key: str,
@@ -205,6 +215,14 @@ async def _call_llm(
     keyword: str,
     html_content: str,
 ) -> list[dict[str, Any]]:
+    cache_key = _llm_cache_key(source_key, keyword, html_content)
+    now = time.monotonic()
+    if cache_key in _llm_cache:
+        cached, ts = _llm_cache[cache_key]
+        if now - ts < _LLM_CACHE_TTL:
+            return cached
+        del _llm_cache[cache_key]
+
     prompt = _EXTRACTION_PROMPT.format(
         source_name=source_key,
         keywords=keyword,
@@ -227,7 +245,7 @@ async def _call_llm(
     async with sem:
         try:
             resp = await client.post(
-                _OPENROUTER_URL, json=payload, headers=headers, timeout=_REQUEST_TIMEOUT,
+                _OPENROUTER_URL, json=payload, headers=headers, timeout=_LLM_TIMEOUT,
             )
             resp.raise_for_status()
         except httpx.TimeoutException:
@@ -265,6 +283,7 @@ async def _call_llm(
         extracted: list[dict[str, Any]] = json.loads(raw_text)
         if not isinstance(extracted, list):
             raise ValueError("Expected a JSON array")
+        _llm_cache[cache_key] = (extracted, now)
         return extracted
     except (json.JSONDecodeError, ValueError):
         pass
@@ -277,6 +296,7 @@ async def _call_llm(
             extracted = json.loads(salvaged)
             if isinstance(extracted, list):
                 logger.warning("Truncated LLM JSON salvaged for '%s' (%d entries)", source_key, len(extracted))
+                _llm_cache[cache_key] = (extracted, now)
                 return extracted
     except (json.JSONDecodeError, ValueError):
         pass
@@ -358,7 +378,9 @@ class WebScanner(BaseScanner):
 
     def __init__(self) -> None:
         super().__init__()
-        # Override the base client with web-scraping-friendly settings
+        # Store base client for cleanup (BaseScanner creates one we replace)
+        self._base_client = self.client
+        # Override with web-scraping-friendly settings
         self.client = httpx.AsyncClient(
             timeout=_REQUEST_TIMEOUT,
             headers={
@@ -367,6 +389,13 @@ class WebScanner(BaseScanner):
             },
             follow_redirects=True,
         )
+
+    async def __aexit__(self, *args):
+        """Close both our client and the base client we replaced."""
+        try:
+            await self.client.aclose()
+        finally:
+            await self._base_client.aclose()
 
     async def scan(self, keywords: list[str]) -> ScanResult:
         api_key = os.getenv("OPENROUTER_API_KEY", "")

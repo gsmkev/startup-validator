@@ -1,5 +1,9 @@
+import logging
+
 from models import ScanResult, ScannerAnalysis, Competitor
 from scanners.base import BaseScanner
+
+logger = logging.getLogger("validator.scanners.turuc")
 
 
 class TurucScanner(BaseScanner):
@@ -12,6 +16,7 @@ class TurucScanner(BaseScanner):
     BASE_URL = "https://turuc.com.py/api"
 
     async def scan(self, keywords: list[str]) -> ScanResult:
+        logger.info("scan keywords=%s", keywords[:2])
         try:
             results = []
             total_count = 0
@@ -38,9 +43,11 @@ class TurucScanner(BaseScanner):
                             source="DNIT/TuRuc",
                             detail=f"Estado: {estado}" if estado else None
                         ))
-                except Exception:
+                except Exception as e:
+                    logger.warning("TuRuc keyword %r failed: %s", keyword, e)
                     continue
 
+            logger.info("TuRuc done count=%d competitors=%d", total_count, len(results))
             hints = []
             if total_count > 0 and active_count == 0:
                 hints.append(f"{total_count} empresas en DNIT (incluye canceladas y suspendidas)")
@@ -53,6 +60,7 @@ class TurucScanner(BaseScanner):
                 hints=hints
             )
         except Exception as e:
+            logger.warning("TuRuc scan failed: %s", e)
             return ScanResult(source="TuRuc", available=False, hints=[str(e)])
 
     @classmethod

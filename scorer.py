@@ -1,5 +1,10 @@
 from __future__ import annotations
+
+import logging
+
 from models import ScanResult, ScannerAnalysis
+
+logger = logging.getLogger("validator.scorer")
 
 
 def calculate_market_signal(scan_results: list[ScanResult]) -> tuple[int, str, str]:
@@ -14,12 +19,16 @@ def calculate_market_signal(scan_results: list[ScanResult]) -> tuple[int, str, s
 
     available = {r.source: r for r in scan_results if r.available}
     if not available:
+        logger.warning("calculate_market_signal: no available scanners")
         return 0, "espacio abierto", (
             "No fue posible consultar las fuentes de datos. "
             "Intentá de nuevo o verificá la conexión a internet."
         )
 
-    positive_max = 0
+    # Normalize over effective weights: only scanners that contributed data
+    # (count > 0 or raw_signal != 0) to avoid inflating/deflating when
+    # some scanners return empty while others have real signals
+    effective_positive_max = 0.0
     raw_positive = 0.0
     raw_negative = 0.0
 
@@ -28,17 +37,29 @@ def calculate_market_signal(scan_results: list[ScanResult]) -> tuple[int, str, s
         if meta is None:
             continue
         w = meta.weight
-        if meta.signal_direction == "negative":
-            raw_negative += result.raw_signal * w
-        else:
-            positive_max += w
-            raw_positive += result.raw_signal * w
+        has_data = result.count > 0 or result.raw_signal != 0.0
 
-    if positive_max == 0:
+        if meta.signal_direction == "negative":
+            if has_data:
+                raw_negative += result.raw_signal * w
+        else:
+            raw_positive += result.raw_signal * w
+            if has_data:
+                effective_positive_max += w
+
+    # Fallback: use all positive weights if no positive scanner returned data
+    if effective_positive_max == 0:
+        for source, result in available.items():
+            meta = registry.get(source)
+            if meta and meta.signal_direction == "positive":
+                effective_positive_max += meta.weight
+
+    if effective_positive_max == 0:
         return 0, "espacio abierto", "Sin fuentes positivas disponibles."
 
-    normalized = (raw_positive / positive_max) * 100 + (raw_negative / positive_max) * 100
+    normalized = (raw_positive / effective_positive_max) * 100 + (raw_negative / effective_positive_max) * 100
     score = max(0, min(100, int(normalized)))
+    logger.debug("calculate_market_signal: raw_positive=%.2f raw_negative=%.2f effective_max=%.0f score=%d", raw_positive, raw_negative, effective_positive_max, score)
 
     if score > 70:
         label = "mercado saturado"

@@ -7,8 +7,9 @@ export function SignalGauge({ score, label }: { score: number; label: string }) 
       ? "#D52B1E"   // red — opportunity
       : "#0038A8";  // blue — open space
 
-  const radius = 70;
-  const circumference = Math.PI * radius; // half circle
+  // Path uses arc radius 80 (A 80 80); half-circle length = π * 80
+  const arcRadius = 80;
+  const circumference = Math.PI * arcRadius;
   const offset = circumference - (score / 100) * circumference;
 
   return (
