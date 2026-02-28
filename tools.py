@@ -2,9 +2,8 @@ import asyncio
 import time
 from fastmcp import FastMCP
 from scanners import get_scanners
-from keyword_extractor import extract_keywords
+from ai_analyzer import extract_keywords_via_llm, generate_ai_analysis
 from scorer import calculate_market_signal, generate_analysis
-from ai_analyzer import generate_ai_analysis
 from models import IdeaValidationResult, MarketHint
 
 mcp = FastMCP("paraguay-idea-mcp")
@@ -13,7 +12,7 @@ mcp = FastMCP("paraguay-idea-mcp")
 @mcp.tool()
 async def validate_idea(
     idea: str,
-    depth: str = "quick"
+    depth: str = "deep"
 ) -> dict:
     """
     Validates a startup idea against real Paraguayan market data.
@@ -23,10 +22,10 @@ async def validate_idea(
 
     Args:
         idea: Description of the startup idea in Spanish
-        depth: "quick" (fast scan, ~2s) or "deep" (all sources in parallel, ~5s)
+        depth: "quick" (fast, 2 sources) or "deep" (all sources incl. web scanner)
     """
     start = time.monotonic()
-    keywords = extract_keywords(idea)
+    keywords = await extract_keywords_via_llm(idea)
 
     scanner_classes = get_scanners(depth)
     scanners = [cls() for cls in scanner_classes]
@@ -68,15 +67,13 @@ async def validate_idea(
             source="Análisis local"
         ))
 
-    turuc_count = by_source["TuRuc"].count if "TuRuc" in by_source else 0
-    dncp_count  = by_source["DNCP"].count  if "DNCP"  in by_source else 0
     ai_data = await generate_ai_analysis(
         idea=idea,
         keywords=keywords,
         score=score,
         label=label,
-        turuc_count=turuc_count,
-        dncp_count=dncp_count,
+        source_counts={r.source: r.count for r in valid_results if r.available},
+        competitors=all_competitors[:5],
         news_titles=all_news_samples[:3],
     )
 

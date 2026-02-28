@@ -6,8 +6,9 @@ from dataclasses import dataclass, field
 class Competitor(BaseModel):
     name: str
     ruc: Optional[str] = None
-    source: str  # "DNIT/TuRuc" | "MIC" | "DNCP" | "Google News PY"
+    source: str  # "DNIT/TuRuc" | "MIC" | "DNCP" | "Google News PY" | "Web/*"
     detail: Optional[str] = None
+    url: Optional[str] = None
 
 
 class MarketHint(BaseModel):

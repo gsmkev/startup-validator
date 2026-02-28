@@ -80,6 +80,8 @@ def generate_analysis(
     action_items: list[str] = []
     pivot_suggestions: list[str] = []
 
+    by_source = {r.source: r for r in scan_results if r.available}
+
     for r in scan_results:
         scanner_cls = registry.get(r.source)
         if scanner_cls is None:
@@ -89,6 +91,24 @@ def generate_analysis(
         weaknesses.extend(analysis.weaknesses)
         action_items.extend(analysis.action_items)
         pivot_suggestions.extend(analysis.pivot_suggestions)
+
+    # Cross-reference web vs registry data for deeper insights
+    web = by_source.get("Web PY")
+    turuc = by_source.get("TuRuc")
+    if web and turuc:
+        if web.count > 5 and turuc.count == 0:
+            weaknesses.append(
+                "Se encontraron competidores en la web pero ninguno registrado en DNIT "
+                "— posible mercado informal o jugadores internacionales sin presencia fiscal en Paraguay"
+            )
+        elif web.count == 0 and turuc.count > 30:
+            strengths.append(
+                "Muchas empresas registradas pero ninguna con presencia web visible "
+                "— oportunidad enorme de capturar el canal digital"
+            )
+            action_items.append(
+                "Invertí en SEO y presencia digital desde el día 1: tus competidores formales no están online"
+            )
 
     # Score-based generic weaknesses
     if score > 70:

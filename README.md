@@ -40,9 +40,9 @@ Este proyecto conecta un **servidor MCP** con fuentes de datos reales del gobier
 ┌─────────────────────────────────────────────────────────────┐
 │              PARAGUAY IDEA MCP SERVER                       │
 │                                                             │
-│  keyword_extractor → ["fintech", "cooperativa", "pagos"]   │
+│  LLM extrae keywords → ["fintech", "cooperativa", "pagos"] │
 │                                                             │
-│  Corre los 4 scanners EN PARALELO:                         │
+│  Corre los 5 scanners EN PARALELO:                        │
 │                                                             │
 │  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐        │
 │  │    TuRuc     │ │ Google News  │ │     DNCP     │        │
@@ -50,11 +50,10 @@ Este proyecto conecta un **servidor MCP** con fuentes de datos reales del gobier
 │  │   DNIT)      │ │  paraguaya)  │ │   estado)    │        │
 │  └──────────────┘ └──────────────┘ └──────────────┘        │
 │         +                                                   │
-│  ┌──────────────┐                                           │
-│  │     MIC      │                                           │
-│  │  (startups   │                                           │
-│  │ registradas) │                                           │
-│  └──────────────┘                                           │
+│  ┌──────────────┐ ┌──────────────┐                           │
+│  │     MIC     │ │   Web PY     │                           │
+│  │  (startups) │ │ (DDG, pymes) │                           │
+│  └──────────────┘ └──────────────┘                           │
 │                                                             │
 │  scorer.py → market_signal: 35/100                         │
 └───────────────────┬─────────────────────────────────────────┘
@@ -115,7 +114,7 @@ startup-validator/
 ├── tools.py               ← @mcp.tool() validate_idea()
 ├── scorer.py              ← Fórmula de scoring
 ├── models.py              ← Tipos Pydantic (ScanResult, etc.)
-├── keyword_extractor.py   ← Extrae keywords en español
+├── ai_analyzer.py         ← LLM: keywords + análisis de mercado
 │
 ├── scanners/
 │   ├── base.py            ← BaseScanner abstracta

@@ -50,7 +50,7 @@ def _system_prompt() -> str:
 
 class ValidateRequest(BaseModel):
     idea: str
-    depth: str = "quick"
+    depth: str = "deep"
 
 
 @app.post("/validate")
@@ -87,7 +87,7 @@ async def agent(req: AgentRequest):
     if not idea:
         return {"role": "assistant", "content": "Contame tu idea de startup."}
 
-    data = await validate_idea(idea, depth="quick")
+    data = await validate_idea(idea, depth="deep")
 
     # ── Step 2: build a compact context for the LLM (avoid large JSON) ─────
     score      = data["market_signal"]

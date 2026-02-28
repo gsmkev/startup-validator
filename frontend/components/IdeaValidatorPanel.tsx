@@ -6,7 +6,7 @@ import type { IdeaValidationResult } from "@/lib/api";
 
 export function IdeaValidatorPanel() {
   const [idea, setIdea] = useState("");
-  const [depth, setDepth] = useState<"quick" | "deep">("quick");
+  const [depth, setDepth] = useState<"quick" | "deep">("deep");
   const [result, setResult] = useState<IdeaValidationResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -56,8 +56,8 @@ export function IdeaValidatorPanel() {
             value={depth}
             onChange={(e) => setDepth(e.target.value as "quick" | "deep")}
           >
-            <option value="quick">Quick — 2 fuentes (~2s)</option>
-            <option value="deep">Deep — 4 fuentes (~5s)</option>
+<option value="quick">Quick — 2 fuentes (~2s)</option>
+              <option value="deep">Deep — 5 fuentes (~15-30s)</option>
           </select>
           <button
             onClick={handleValidate}
