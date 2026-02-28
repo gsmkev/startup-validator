@@ -1,6 +1,6 @@
 ---
 name: paraguay-startup-validator
-description: Validates startup ideas against real Paraguayan market data from DNIT (TuRuc), DNCP, MIC, and Google News before building or suggesting anything. Returns market saturation score (0-100), competitors, strengths, weaknesses, and AI-powered recommendations.
+description: Validates startup ideas against real Paraguayan market data before building or suggesting anything. Returns market saturation score (0-100), competitors, strengths, weaknesses, and AI-powered recommendations. Sources are auto-discovered from the scanner registry.
 metadata:
   openclaw:
     requires:
@@ -37,7 +37,8 @@ Parse the JSON output and present it clearly:
 **If `market_signal` > 70 (mercado saturado):**
 ```
 ⚠️ Este sector está saturado en Paraguay.
-- Encontré [count] empresas en DNIT.
+- Fuentes consultadas: [sources_queried]
+- Resultados por fuente: [source_counts — show each source and its count]
 - Competidores: [list top 3]
 - Pivots sugeridos: [list pivot_suggestions]
 - Recomendación IA: [ai_recommendation]
@@ -61,6 +62,7 @@ Parse the JSON output and present it clearly:
 ### Always include
 
 - The `market_signal` score and `signal_label`
+- `sources_queried` and `source_counts` so the user knows which data backs the score
 - At least 2 `strengths` or `weaknesses`
 - The `ai_recommendation` if available
 - Top 3 `action_items`

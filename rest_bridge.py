@@ -12,11 +12,11 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import os
-import json
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from openai import AsyncOpenAI
+from scanners import get_source_labels
 from tools import validate_idea, mcp
 
 app = FastAPI(title="Paraguay Idea Validator")
@@ -37,9 +37,13 @@ def _openrouter_client() -> AsyncOpenAI:
 
 _AGENT_MODEL = "openai/gpt-4o-mini"
 
-_SYSTEM_PROMPT = """Sos un agente experto en el mercado paraguayo. Te van a dar datos reales de validación
-de una idea de startup (obtenidos del DNIT, DNCP, MIC y prensa local) y tenés que explicarlos
-de forma clara y accionable en 3-5 párrafos cortos. Usá español rioplatense. Sé directo y específico."""
+def _system_prompt() -> str:
+    sources = ", ".join(get_source_labels())
+    return (
+        f"Sos un agente experto en el mercado paraguayo. Te van a dar datos reales de validación "
+        f"de una idea de startup (obtenidos de {sources}) y tenés que explicarlos "
+        f"de forma clara y accionable en 3-5 párrafos cortos. Usá español rioplatense. Sé directo y específico."
+    )
 
 
 # ── REST bridge for the Next.js frontend ────────────────────────────────────
@@ -83,7 +87,6 @@ async def agent(req: AgentRequest):
     if not idea:
         return {"role": "assistant", "content": "Contame tu idea de startup."}
 
-    # ── Step 1: run the real scanners (TuRuc, DNCP, MIC, Google News) ──────
     data = await validate_idea(idea, depth="quick")
 
     # ── Step 2: build a compact context for the LLM (avoid large JSON) ─────
@@ -119,7 +122,7 @@ Pivots disponibles:
         response = await client.chat.completions.create(
             model=_AGENT_MODEL,
             messages=[
-                {"role": "system", "content": _SYSTEM_PROMPT},
+                {"role": "system", "content": _system_prompt()},
                 {"role": "user", "content": context},
             ],
             extra_headers={

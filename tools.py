@@ -1,19 +1,13 @@
 import asyncio
 import time
 from fastmcp import FastMCP
-from scanners.turuc_scanner import TurucScanner
-from scanners.dncp_scanner import DncpScanner
-from scanners.mic_scraper import MicScraper
-from scanners.google_news_scanner import GoogleNewsScanner
+from scanners import get_scanners
 from keyword_extractor import extract_keywords
 from scorer import calculate_market_signal, generate_analysis
 from ai_analyzer import generate_ai_analysis
 from models import IdeaValidationResult, MarketHint
 
 mcp = FastMCP("paraguay-idea-mcp")
-
-SCANNERS_QUICK = [TurucScanner, GoogleNewsScanner]
-SCANNERS_DEEP  = [TurucScanner, DncpScanner, MicScraper, GoogleNewsScanner]
 
 
 @mcp.tool()
@@ -29,22 +23,23 @@ async def validate_idea(
 
     Args:
         idea: Description of the startup idea in Spanish
-        depth: "quick" (TuRuc + Google News, ~2s) or
-               "deep" (all 4 sources in parallel, ~5s)
+        depth: "quick" (fast scan, ~2s) or "deep" (all sources in parallel, ~5s)
     """
     start = time.monotonic()
     keywords = extract_keywords(idea)
 
-    scanner_classes = SCANNERS_DEEP if depth == "deep" else SCANNERS_QUICK
+    scanner_classes = get_scanners(depth)
     scanners = [cls() for cls in scanner_classes]
 
-    # Run all scanners in parallel
-    scan_results = await asyncio.gather(
-        *[s.scan(keywords) for s in scanners],
-        return_exceptions=True
-    )
+    try:
+        scan_results = await asyncio.gather(
+            *[s.scan(keywords) for s in scanners],
+            return_exceptions=True
+        )
+    finally:
+        for s in scanners:
+            await s.client.aclose()
 
-    # Filter out exceptions (failed scanners)
     valid_results = []
     failed_sources = []
     for r in scan_results:
@@ -56,7 +51,6 @@ async def validate_idea(
     score, label, recommendation = calculate_market_signal(valid_results)
     strengths, weaknesses, action_items, pivot_suggestions = generate_analysis(valid_results, score)
 
-    # Aggregate competitors, hints and news samples
     all_competitors = []
     all_hints = []
     all_news_samples = []
@@ -67,7 +61,6 @@ async def validate_idea(
         for h in r.hints:
             all_hints.append(MarketHint(hint=h, type="info", source=r.source))
 
-    # Add actionable Paraguay-specific hints based on score
     if score > 70:
         all_hints.append(MarketHint(
             hint="Pivot sugerido: enfocate en departamentos del interior (Alto Paraná, Itapúa, Concepción) donde la competencia es menor",
@@ -75,7 +68,6 @@ async def validate_idea(
             source="Análisis local"
         ))
 
-    # AI-enhanced analysis via OpenRouter (runs concurrently, graceful fallback)
     turuc_count = by_source["TuRuc"].count if "TuRuc" in by_source else 0
     dncp_count  = by_source["DNCP"].count  if "DNCP"  in by_source else 0
     ai_data = await generate_ai_analysis(
@@ -106,6 +98,7 @@ async def validate_idea(
         ai_recommendation=ai_data.get("ai_recommendation", ""),
         quick_wins=ai_data.get("quick_wins", []),
         red_flags=ai_data.get("red_flags", []),
+        source_counts={r.source: r.count for r in valid_results if r.available},
         sources_queried=[r.source for r in valid_results if r.available],
         sources_unavailable=[r.source for r in valid_results if not r.available] + failed_sources,
         scan_duration_ms=elapsed_ms,

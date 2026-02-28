@@ -1,20 +1,29 @@
 import os
-from models import ScanResult
+import time
+from models import ScanResult, ScannerAnalysis
 from scanners.base import BaseScanner
 
-# V3 API — basePath from swagger spec at /datos/api/v3/doc/swagger.json
 _V3_BASE = "https://www.contrataciones.gov.py/datos/api/v3/doc"
+_TOKEN_TTL_SECONDS = 3000
 
 
 class DncpScanner(BaseScanner):
-    _cached_token: str | None = None
+    name = "DNCP"
+    tier = "deep"
+    weight = 20
+    signal_direction = "negative"
+    requires_env = ["DNCP_REQUEST_TOKEN"]
+    display_label = "Licitaciones DNCP"
+
+    _cached_token: tuple[str, float] | None = None
 
     async def get_access_token(self) -> str:
         if DncpScanner._cached_token:
-            return DncpScanner._cached_token
+            token, expires_at = DncpScanner._cached_token
+            if time.monotonic() < expires_at:
+                return token
 
         request_token = os.getenv("DNCP_REQUEST_TOKEN", "")
-        # V3 auth: POST with JSON body {"request_token": ...}, returns a proper JWT
         resp = await self.client.post(
             f"{_V3_BASE}/oauth/token",
             json={"request_token": request_token},
@@ -22,7 +31,7 @@ class DncpScanner(BaseScanner):
         )
         resp.raise_for_status()
         token = resp.json()["access_token"]
-        DncpScanner._cached_token = token
+        DncpScanner._cached_token = (token, time.monotonic() + _TOKEN_TTL_SECONDS)
         return token
 
     async def scan(self, keywords: list[str]) -> ScanResult:
@@ -41,7 +50,6 @@ class DncpScanner(BaseScanner):
                 try:
                     resp = await self.client.get(
                         f"{_V3_BASE}/search/processes",
-                        # v3 uses tender.title instead of q
                         params={"tender.title": keyword, "items_per_page": 5},
                         headers={"Authorization": token},
                         timeout=5.0
@@ -54,9 +62,24 @@ class DncpScanner(BaseScanner):
             return ScanResult(
                 source="DNCP",
                 count=total_demand,
-                competitors=[],  # state is not a competitor, it's a customer
-                raw_signal=-min(total_demand / 100, 1.0) * 0.3,  # NEGATIVE: opportunity
+                competitors=[],
+                raw_signal=-min(total_demand / 100, 1.0) * 0.3,
                 hints=[f"El Estado paraguayo tiene {total_demand} licitaciones en este sector"]
             )
         except Exception as e:
             return ScanResult(source="DNCP", available=False, hints=[str(e)])
+
+    @classmethod
+    def analyze(cls, result: ScanResult, score: int) -> ScannerAnalysis:
+        a = ScannerAnalysis()
+        if not result.available:
+            return a
+
+        if result.count > 50:
+            a.strengths.append(f"El Estado tiene {result.count} contratos DNCP en este sector — demanda pública masiva confirmada")
+        elif result.count > 10:
+            a.strengths.append(f"Demanda estatal detectada ({result.count} contratos DNCP) — el Estado es un cliente potencial")
+        elif result.count > 0:
+            a.strengths.append(f"{result.count} contratos DNCP — sector en radar del gobierno paraguayo")
+
+        return a

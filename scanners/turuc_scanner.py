@@ -1,9 +1,14 @@
-import asyncio
-from models import ScanResult, Competitor
+from models import ScanResult, ScannerAnalysis, Competitor
 from scanners.base import BaseScanner
 
 
 class TurucScanner(BaseScanner):
+    name = "TuRuc"
+    tier = "quick"
+    weight = 65
+    signal_direction = "positive"
+    display_label = "Empresas DNIT"
+
     BASE_URL = "https://turuc.com.py/api"
 
     async def scan(self, keywords: list[str]) -> ScanResult:
@@ -12,14 +17,10 @@ class TurucScanner(BaseScanner):
             total_count = 0
             active_count = 0
 
-            # Use only the primary keyword (first one = product/service type).
-            # Using the second keyword risks inflating the count with CLIENT types
-            # e.g. "cooperativas" (2753 hits) are customers, not competitors.
             for keyword in keywords[:1]:
                 try:
                     resp = await self.client.get(
                         f"{self.BASE_URL}/contribuyente/table",
-                        # length=10 required — length=50 returns 400 for accented keywords
                         params={"draw": 1, "start": 0, "length": 10, "search": keyword},
                         timeout=5.0
                     )
@@ -44,7 +45,6 @@ class TurucScanner(BaseScanner):
             if total_count > 0 and active_count == 0:
                 hints.append(f"{total_count} empresas en DNIT (incluye canceladas y suspendidas)")
 
-            # Threshold 80: ~80 empresas en el sector = mercado con competencia real
             return ScanResult(
                 source="TuRuc",
                 count=total_count,
@@ -54,3 +54,21 @@ class TurucScanner(BaseScanner):
             )
         except Exception as e:
             return ScanResult(source="TuRuc", available=False, hints=[str(e)])
+
+    @classmethod
+    def analyze(cls, result: ScanResult, score: int) -> ScannerAnalysis:
+        a = ScannerAnalysis()
+        if not result.available:
+            a.weaknesses.append("No se pudo consultar DNIT/TuRuc — datos de competencia incompletos")
+            return a
+
+        if result.count == 0:
+            a.strengths.append("Ninguna empresa registrada en el DNIT para este sector — mercado virgen")
+        elif result.count < 30:
+            a.strengths.append(f"Solo {result.count} negocios en DNIT — mercado poco explotado localmente")
+        elif result.count < 80:
+            a.strengths.append(f"{result.count} empresas en DNIT — sector existente con espacio para nuevos jugadores")
+        else:
+            a.weaknesses.append(f"{result.count} empresas ya registradas en DNIT — alta competencia establecida")
+
+        return a

@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 from typing import Optional
+from dataclasses import dataclass, field
 
 
 class Competitor(BaseModel):
@@ -25,6 +26,15 @@ class ScanResult(BaseModel):
     news_samples: list[str] = []
 
 
+@dataclass
+class ScannerAnalysis:
+    """Per-scanner analysis output returned by BaseScanner.analyze()."""
+    strengths: list[str] = field(default_factory=list)
+    weaknesses: list[str] = field(default_factory=list)
+    action_items: list[str] = field(default_factory=list)
+    pivot_suggestions: list[str] = field(default_factory=list)
+
+
 class IdeaValidationResult(BaseModel):
     idea: str
     keywords_extracted: list[str]
@@ -42,6 +52,7 @@ class IdeaValidationResult(BaseModel):
     ai_recommendation: str = ""
     quick_wins: list[str] = []       # 3 concrete 90-day actions
     red_flags: list[str] = []        # Paraguay-specific risks
+    source_counts: dict[str, int]    # per-source hit counts: {"TuRuc": 42, "MIC": 3, ...}
     sources_queried: list[str]
     sources_unavailable: list[str]
     scan_duration_ms: int

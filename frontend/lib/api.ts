@@ -28,6 +28,7 @@ export interface IdeaValidationResult {
   ai_recommendation: string;
   quick_wins: string[];
   red_flags: string[];
+  source_counts: Record<string, number>;
   sources_queried: string[];
   sources_unavailable: string[];
   scan_duration_ms: number;

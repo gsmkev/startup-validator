@@ -18,7 +18,7 @@ export function ChatPanel() {
     {
       role: "assistant",
       content:
-        "¡Hola! Soy tu agente validador de ideas para el mercado paraguayo 🇵🇾\n\nContame tu idea de startup y la analizo contra datos reales del DNIT, DNCP, MIC y prensa local antes de darte mi opinión.",
+        "¡Hola! Soy tu agente validador de ideas para el mercado paraguayo.\n\nContame tu idea de startup y la analizo contra datos reales del mercado paraguayo antes de darte mi opinión.",
     },
   ]);
   const [input, setInput] = useState("");

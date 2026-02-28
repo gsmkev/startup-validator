@@ -16,7 +16,7 @@ export default function Home() {
             Paraguay Startup Validator
           </h1>
           <p className="text-gray-500 text-sm">
-            Validá tu idea contra datos reales del DNIT, MIC y prensa paraguaya
+            Validá tu idea contra datos reales del mercado paraguayo
           </p>
         </div>
 

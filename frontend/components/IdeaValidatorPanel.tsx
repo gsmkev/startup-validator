@@ -91,25 +91,22 @@ export function IdeaValidatorPanel() {
           </div>
 
           {/* Resumen de métricas */}
-          <div className="grid grid-cols-3 gap-3">
-            <StatCard
-              label="Empresas DNIT"
-              value={(() => {
-                const s = result.raw_scores["TuRuc"];
-                return s != null ? Math.round(s * 300) : "—";
-              })()}
-              sub="registradas en sector"
-              tone={result.raw_scores["TuRuc"] > 0.5 ? "bad" : "good"}
-            />
-            <StatCard
-              label="Artículos de prensa"
-              value={(() => {
-                const s = result.raw_scores["Google News PY"];
-                return s != null ? Math.round(s / 0.15 * 20) : "—";
-              })()}
-              sub="últimas noticias PY"
-              tone="neutral"
-            />
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {Object.entries(result.source_counts).map(([source, count]) => (
+              <StatCard
+                key={source}
+                label={source}
+                value={count}
+                sub="resultados"
+                tone={
+                  result.raw_scores[source] != null && result.raw_scores[source] > 0.7
+                    ? "bad"
+                    : result.raw_scores[source] != null && result.raw_scores[source] < -0.1
+                    ? "good"
+                    : "neutral"
+                }
+              />
+            ))}
             <StatCard
               label="Fuentes activas"
               value={result.sources_queried.length}
